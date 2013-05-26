@@ -5,8 +5,11 @@ SST_AUTH="root:rootpass"
 SST_METHOD="xtrabackup"
 MYSQLD_DEFAULT_PARAM="--basedir=/usr --datadir=/var/lib/mysql --bind-address=0.0.0.0 --port=3306"
 MYSQLD_SAFE_BIN="/usr/bin/mysqld_safe"
+MYSQLD_BIN="/usr/bin/mysqld"
 FALSE=1
 TRUE=0
+RESOURCE_NAME=mysqlgalera
+
 ra_log() {
 	# parameter: ra_log (info|debug|err) "$message"
 	local type=$1
@@ -15,20 +18,51 @@ ra_log() {
 	echo "$message" | logger -t "ocf-mysqlgalera[$type]"
 }
 is_master() {
-	local parent_log=${1} -> ${FUNCNAME[0]}"() $2"
-	ra_log "$parent_log" err
+	local parent_log=${$#} -> ${FUNCNAME[0]}"()"
+	local master_node=`the_master_node "$parent_log"`
+	
+	if [ x"$master_node" == x"$HOSTNAME" ]; then
+		ra_log debug "$parent_log -> exit TRUE"
+		return $TRUE
+	else
+		ra_log debug "$parent_log -> exit FALSE"
+		return $FALSE
+	fi
 }
 the_master_node() {
-	local parent_log=${1} -> ${FUNCNAME[0]}"()"
+	local parent_log=${$#} -> ${FUNCNAME[0]}"()"
 	if ocf_is_ms; then
+		# running in cluster
+		local cluster_masters=`/usr/sbin/crm_resource --list | grep -A2 "\[$RESOURCE_NAME\]" | grep 'Masters: ' | awk '{print $3}' `
+		echo "$cluster_masters"
+		ra_log debug "$parent_log -> ocf_is_ms=true -> cluster_masters=$cluster_masters -> exit OCF_SUCCESS/$OCF_SUCCESS"
+		return $OCF_SUCCESS
+	else
+		# not running as cluster
+		ra_log debug "$parent_log -> ocf_is_ms=false -> exit OCF_SUCCESS/$OCF_SUCCESS"
+		return $OCF_SUCCESS
+	fi
+	
+	return $OCF_ERR_GENERIC
 }
-is_mysql_running() {
+is_mysqld_running() {
+	local parent_log=${$#} -> ${FUNCNAME[0]}"()"
+	local mysqld_pid=`pidof $MYSQLD_BIN`
+	local rc-pidof=$?
+	
+	if [ $rc-pidof == $TRUE ]; then
+		ra_log debug "$parent_log -> pidof() $MYSQLD_BIN -> MYSQLD_PID=$mysqld_pid -> return $rc-pidof"
+		return $OCF_SUCCESS
+	fi
+	
+	ra_log debug "$parent_log -> pidof() $MYSQLD_BIN -> return $rc-pidof -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
+	return $OCF_NOT_RUNNING
 }
 run_as() {
-	# parameter: run_as "$parent_log" (master|slave|none) [master_hostname]
-	local parent_log=`echo "${1} -> ${FUNCNAME[0]}() mode=$2,master_hostname=$3"`
-	local mode=$2
-	local master=$3
+	# parameter: run_as (master|slave|none) [master_hostname] "$parent_log"
+	local parent_log=`echo "${$#} -> ${FUNCNAME[0]}() mode=$1,master_hostname=$2"`
+	local mode=$1
+	local master=$2
 	local extra_args=
 	local is_ms=$FALSE
 	local rc
@@ -49,16 +83,16 @@ run_as() {
 			extra_args=`echo "$extra_args" --wsrep_cluster_address="gcomm://$master"`
 			extra_args=`echo "$extra_args" --wsrep_sst_auth="$SST_AUTH"`
 			extra_args=`echo "$extra_args" --wsrep_sst_method=$SST_METHOD`
-			ra_log debug "$parent_log -> case mode=\"$mode\" -> extra_args=$extra_args"
+			ra_log debug "$parent_log -> case mode=\"$mode\" -> MASTER_NODE=$master,sst_auth=\"$SST_AUTH\",sst_method=\"SST_METHOD\""
 		;;
 		*)
-			ra_log debug"$parent_log -> case mode=\"$mode\" -> extra_args=$extra_args"
+			ra_log debug"$parent_log -> case mode=\"$mode\""
 		;;
 	esac
 	
 	$MYSQLD_BIN_SAFE $MYSQLD_PARAM $extra_args >/dev/null 2>&1 &
 	rc=$?
-	ra_log "debug $parent_log -> $MYSQLD_BIN_SAFE $MYSQLD_PARAM $extra_args -> return $rc"
+	ra_log debug "debug $parent_log -> $MYSQLD_BIN_SAFE $MYSQLD_PARAM $extra_args -> return $rc"
 	
 	if [ $rc -ne 0 ]; then
 		ra_log debug "$parent_log -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
@@ -68,71 +102,140 @@ run_as() {
 	ra_log debug "$parent_log -> exit OCF_SUCCESS/$OCF_SUCCESS"
 	return $OCF_SUCCESS
 }
-ra_metadata() {
-	local parent_log=${FUNCNAME[0]}"() "
-}
 ra_stop() {
-	local parent_log=${FUNCNAME[0]}"() "
+	# Parameter: ra_stop() timeout "$parent_log"
+	local loop_limit=$1
+	local loop_counter=0
+	local is_running=$TRUE
+	local parent_log=`echo "${$#} -> ${FUNCNAME[0]}() timeout=$timeout"`
+	
+	while [ $is_running -eq $TRUE -o $loop_counter -le $loop_limit ]; do
+		# Run this loop until mysqld is running OR hasn't reached the timeout
+		loop_counter=$((loop_counter+1))
+		ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter"
+		local mysqld_pid=`pidof $MYSQLD_BIN`
+		local rc-pidof=$?
+		
+		if [ $rc-pidof -eq $TRUE ]; then
+			# mysqld running
+			for pid in $mysqld_pid; do
+				kill $pid >/dev/null 2>&1
+				ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter -> kill $pid -> return $?"
+			done
+		else
+			# no instance of mysqld running
+			ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> is_running=false,return $rc-pidof -> exit OCF_SUCCESS/$OCF_SUCCESS"
+			return $OCF_SUCCESS
+		fi
+		sleep 0.1
+	done
+	
+	ra_log debug "$parent_log -> exit OCF_SUCCESS/$OCF_SUCCESS"
+	return $OCF_SUCCESS
 }
 ra_start() {
-	local parent_log=`echo "${1} -> ${FUNCNAME[0]}()"`
+	local parent_log=`echo "${$#} -> ${FUNCNAME[0]}()"`
 	local rc-ocf_is_ms
 	ocf_is_ms
 	rc-ocf_is_ms=$?
 
+	if is_mysqld_running "$parent_log"; then
+		# There is a mysqld instance running
+		ra_stop "$parent_log"
+	fi
+
 	if [ $rc-ocf_is_ms -eq 0 ]; the
 		# Resource running in Master/Slave
 		local rc-the_master_node
-		local master_node=`the_master_node`
-		rc-the_master_node=
-		ra_log debug "$parent_log -> ocf_is_ms=$rc-ocf_is_ms -> the_master_node=$master_node -> return $rc-the_master_node"
+		local master_node=`the_master_node "$parent_log"`
+		rc-the_master_node=$?
+		ra_log debug "$parent_log -> ocf_is_ms()=$rc-ocf_is_ms -> the_master_node()=$master_node -> return $rc-the_master_node"
 		
 		if [ $rc-the_master_node -eq $TRUE ]; then
 			# The function the_master_node() run successfully
-			if [ x"$master_node" == x"$HOSTNAME" ]; then
+			if [ x"$master_node" == x"$HOSTNAME" -o x"$master_node" == x"" ]; then
 				# We are the master
-			elif [ x"$master_node" == x"" ]; then
+				run_as master "$parent_log -> ocf_is_ms()=$rc-of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
+				return $?
+			if [ x"$master_node" == x"" ]; then
 				# The resource is currently in master/slave node but no node is currently elected as master
-			
+				run_as master "$parent_log -> ocf_is_ms()=$rc-of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
+				return $?
+			else
+				# We are slave
+				run_as slave $master_node "$parent_log -> ocf_is_ms()=$rc-of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
+				return $?
 			fi
 		else
-			# Something went wrong with the function the_master_nod)
-			:
+			# Function exited with value other than 0. Something went wrong with the function the_master_node()
+			ra_log debug "$parent_log -> ocf_is_ms()=$rc-of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> ra_start() return OCF_ERR_GENERIC"
+			return $OCF_ERR_GENERIC
 		fi
-		
-			ra_log debug "$parent_log -> ocf_is_ms=$rc-ocf_is_ms -> run_as \"<log>\" none"
 	else
 		# Resource running on single instance(without replication)
-		ra_log debug "$parent_log -> ocf_is_ms=$rc-ocf_is_ms -> run_as \"<log>\" none"
-		run_as "$parent_log" none
-		ra_log debug "$parent_log -> ocf_is_ms=$rc-ocf_is_ms -> run_as \"<log>\" none -> return $?"
+		run_as none "$parent_log -> ocf_is_ms()=$rc-ocf_is_ms -> run_as none"
+		return $?
 	fi
 }
 ra_monitor() {
-	local parent_log=${FUNCNAME[0]}"() "
+	local parent_log=`echo "${$#} -> ${FUNCNAME[0]}()"`
+
+	if is_mysqld_running "$parent_log"; then
+		if is_master "$parent_log"; then
+			return $OCF_RUNNING_MASTER
+		else
+			# mysqld running, cluster mode is master
+			return $OCF_SUCCESS
+		fi			
+	else
+		ra_log debug "$parent_log -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
+		return $OCF_NOT_RUNNING
+	fi
+	
+	return $OCF_ERR_GENERIC
 }
-ra_demote() {
-	local parent_log=${FUNCNAME[0]}"() "
-}
-ra_promote() {
-	local parent_log=${FUNCNAME[0]}"() "
-}
-ra_monitor() {
-	local parent_log=${FUNCNAME[0]}"() "
+ra_metadata() {
+	local parent_log=`echo "${$#} -> ${FUNCNAME[0]}()"`
+	ra_log debug "$parent_log"
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="MySQL-Galera" version="0.1">
+<version>0.1</version>
+
+<longdesc lang="en">
+This is an example resource agent that impliments two states
+</longdesc>
+<shortdesc lang="en">Example stateful resource agent</shortdesc>
+
+<actions>
+<action name="start"   timeout="20" />
+<action name="stop"    timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="20" />
+<action name="monitor" role="Master" depth="0" timeout="30" interval="10" />
+<action name="monitor" role="Slave" depth="0" timeout="30" interval="30" />
+<action name="promote" timeout="120" />
+<action name="demote" timeout="120" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="10" />
+</actions>
+</resource-agent>
+END
 }
 ra_validate() {
-	local parent_log=${FUNCNAME[0]}"() "
+	local parent_log=`echo "${$#} -> ${FUNCNAME[0]}()"`
+	ra_log debug "$parent_log -> exit OCF_SUCCESS/$OCF_SUCCESS"
+	return $OCF_SUCCESS
 }
 
 case $__OCF_ACTION in
 	meta-data)	ra_metadata "CRM";;
-	start)		ra_start;;
-	promote)	ra_promote;;
-	demote)		ra_demote;;
-	stop)		ra_stop;;
-	monitor)	ra_monitor;;
-	validate-all)	ra_validate;;
-	notify)		ra_notify;;
+	start)		ra_start "CRM";;
+	promote)	ra_promote "CRM";;
+	demote)		ra_demote "CRM";;
+	stop)		ra_stop 200 "CRM";;
+	monitor)	ra_monitor "CRM";;
+	validate-all)	ra_validate "CRM";;
 	usage|help)	exit $OCF_SUCCESS;;
 	*)		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
