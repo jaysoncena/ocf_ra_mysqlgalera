@@ -66,7 +66,6 @@ is_mysqld_running() {
 }
 run_as() {
 	# parameter: run_as (master|slave|none) [master_hostname] "$parent_log"
-	local parent_log="${!#} -> ${FUNCNAME[0]}() mode=$1,master_hostname=$2"
 	local mode=$1
 	local master=$2
 	local extra_args=
@@ -75,23 +74,26 @@ run_as() {
 	# check if mysql service will be running as master, slave or single/independent instance
 	case $mode in
 		master)
+			local parent_log="${!#} -> ${FUNCNAME[0]}() mode=$mode"
 			extra_args="$extra_args --wsrep_provider=/usr/lib64/libgalera_smm.so"
 			extra_args="$extra_args --wsrep_cluster_name=cluster1"
 			extra_args="$extra_args --wsrep_cluster_address=\"gcomm://\""
 			extra_args="$extra_args --wsrep_sst_auth=$SST_AUTH"
 			extra_args="$extra_args --wsrep_sst_method=$SST_METHOD"
-			ra_log debug "$parent_log -> case mode=\"$mode\" -> sst_auth=\"$SST_AUTH\",sst_method=\"SST_METHOD\""
+			ra_log debug "$parent_log -> case mode=$mode -> sst_auth=$SST_AUTH,sst_method=$SST_METHOD"
 		;;
 		slave)
+			local parent_log="${!#} -> ${FUNCNAME[0]}() mode=$mode,master_hostname=$master"
 			extra_args="$extra_args --wsrep_provider=/usr/lib64/libgalera_smm.so"
 			extra_args="$extra_args --wsrep_cluster_name=cluster1"
 			extra_args="$extra_args --wsrep_cluster_address=\"gcomm://$master\""
 			extra_args="$extra_args --wsrep_sst_auth=$SST_AUTH"
 			extra_args="$extra_args --wsrep_sst_method=$SST_METHOD"
-			ra_log debug "$parent_log -> case mode=\"$mode\" -> MASTER_NODE=$master,sst_auth=\"$SST_AUTH\",sst_method=\"SST_METHOD\""
+			ra_log debug "$parent_log -> case mode=$mode -> master_node=$master,sst_auth=$SST_AUTH,sst_method=$SST_METHOD"
 		;;
 		*)
-			ra_log debug "$parent_log -> case mode=\"$mode\""
+			local parent_log="${!#} -> ${FUNCNAME[0]}() mode=$mode"
+			ra_log debug "$parent_log"
 		;;
 	esac
 	
@@ -149,11 +151,11 @@ ra_start() {
 		ra_stop 10 "$parent_log"
 	fi
 
-	if [ $rc_ocf_is_ms -eq 0 ]; then
+	if [ $rc_ocf_is_ms -eq $TRUE ]; then
 		# Resource running in Master/Slave
 		local rc_the_master_node
 		local master_node=`the_master_node "$parent_log"`
-		ra_log debug "$parent_log -> ocf_is_ms()=$rc_ocf_is_ms -> the_master_node()=$master_node"
+		ra_log debug "$parent_log -> ocf_is_ms()=true -> the_master_node()=$master_node"
 
 		if [ x"$master_node" == x"$HOSTNAME" -o x"$master_node" == x"" ]; then
 			# We are the master
@@ -170,7 +172,7 @@ ra_start() {
 		fi
 	else
 		# Resource running on single instance(without replication)
-		run_as none "$parent_log -> ocf_is_ms()=$rc_ocf_is_ms -> run_as none"
+		run_as none "$parent_log -> ocf_is_ms()=false -> run_as none"
 		return $?
 	fi
 }
