@@ -97,9 +97,9 @@ run_as() {
 		;;
 	esac
 	
-	$MYSQLD_BIN_SAFE $MYSQLD_PARAM $extra_args >/dev/null 2>&1 &
+	$MYSQLD_SAFE_BIN $MYSQLD_DEFAULT_PARAM $extra_args >/dev/null 2>&1 &
 	local rc=$?
-	ra_log debug "debug $parent_log -> $MYSQLD_BIN_SAFE $MYSQLD_PARAM $extra_args -> return $rc"
+	ra_log debug "$parent_log -> $MYSQLD_SAFE_BIN $MYSQLD_DEFAULT_PARAM $extra_args -> return $rc"
 	
 	if [ $rc -ne 0 ]; then
 		ra_log debug "$parent_log -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
