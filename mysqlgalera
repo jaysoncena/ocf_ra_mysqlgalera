@@ -54,14 +54,13 @@ the_master_node() {
 is_mysqld_running() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
 	local mysqld_pid=`pidof $MYSQLD_BIN`
-	local rc_kill0
 	
-	if [ $rc_pidof == $TRUE ]; then
-		ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> MYSQLD_PID=$mysqld_pid -> return $rc_pidof"
+	if [ x"$mysqld_pid" != x ]; then
+		ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> MYSQLD_PID=$mysqld_pid"
 		return $OCF_SUCCESS
 	fi
 	
-	ra_log debug "$parent_log -> pidof() $MYSQLD_BIN -> return $rc_pidof -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
+	ra_log debug "$parent_log -> pidof() $MYSQLD_BIN -> MYSQLD_PID=$mysqld_pid -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
 	return $OCF_NOT_RUNNING
 }
 wait_for_mysqld() {
@@ -75,7 +74,7 @@ wait_for_mysqld() {
 		is_mysqld_running
 		rc_is_mysqld_running=$?
 		ra_log debug "$parent_log -> loop#$loop_counter -> is_mysqld_running=$rc_is_mysqld_running"
-		if [ $is_mysqld_running -eq $TRUE ]; then
+		if [ $is_mysqld_running -eq $OCF_SUCCESS ]; then
 			ra_log debug "$parent_log -> loop#$loop_counter -> is_mysqld_running=$rc_is_mysqld_running -> return OCF_SUCCESS/$OCF_SUCCESS"
 			return $OCF_SUCCESS
 		fi
