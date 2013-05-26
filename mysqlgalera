@@ -69,7 +69,7 @@ wait_for_mysqld() {
 	local rc_is_mysqld_running=$FALSE
 	local parent_log="${!#} -> ${FUNCNAME[0]}() loop_limit=$loop_limit"
 	
-	while [ $rc_is_mysqld_running -eq $FALSE -a $loop_counter -le $loop_limit ]; do
+	while [ $rc_is_mysqld_running -ne $TRUE -a $loop_counter -le $loop_limit ]; do
 		loop_counter=$((loop_counter+1))
 		is_mysqld_running "$parent_log"
 		rc_is_mysqld_running=$?
@@ -131,7 +131,7 @@ run_as() {
 	local rc_wait_for_mysqld=$?
 	
 	if [ $rc_wait_for_mysqld -ne $OCF_SUCCESS ]; then
-		ra_log debug "$parent_log -> wait_for_mysqld $loop_limit-> returns $rc_wait_for_mysqld -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
+		ra_log debug "$parent_log -> wait_for_mysqld loop_limit=$loop_limit-> returns $rc_wait_for_mysqld -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
 		return $OCF_ERR_GENERIC
 	fi
 	
