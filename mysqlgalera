@@ -126,11 +126,12 @@ run_as() {
 	fi
 	
 	# mysql runs successfully. We should wait for the PID to appear
-	wait_for_mysqld 20 "$parent_log"
+	local loop_limit=20
+	wait_for_mysqld $loop_limit "$parent_log"
 	local rc_wait_for_mysqld=$?
 	
 	if [ $rc_wait_for_mysqld -ne $OCF_SUCCESS ]; then
-		ra_log debug "$parent_log -> wait_for_mysqld -> returns $rc_wait_for_mysqld -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
+		ra_log debug "$parent_log -> wait_for_mysqld $loop_limit-> returns $rc_wait_for_mysqld -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
 		return $OCF_ERR_GENERIC
 	fi
 	
