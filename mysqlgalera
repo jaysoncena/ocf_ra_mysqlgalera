@@ -64,6 +64,26 @@ is_mysqld_running() {
 	ra_log debug "$parent_log -> pidof() $MYSQLD_BIN -> return $rc_pidof -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
 	return $OCF_NOT_RUNNING
 }
+wait_for_mysqld() {
+	local loop_limit=$1
+	local loop_counter=0
+	local rc_is_mysqld_running=$FALSE
+	local parent_log="${!#} -> ${FUNCNAME[0]}() loop_limit=$loop_limit"
+	
+	while [ $rc_is_mysqld_running -eq $FALSE -a $loop_counter -le $loop_limit ]; do
+		loop_counter=$((loop_counter+1))
+		is_mysqld_running
+		rc_is_mysqld_running=$?
+		ra_log debug "$parent_log -> loop#$loop_counter -> is_mysqld_running=$rc_is_mysqld_running"
+		if [ $is_mysqld_running -eq $TRUE ]; then
+			ra_log debug "$parent_log -> loop#$loop_counter -> is_mysqld_running=$rc_is_mysqld_running -> return OCF_SUCCESS/$OCF_SUCCESS"
+			return $OCF_SUCCESS
+		fi
+		sleep 1
+	done
+	
+	return $OCF_NOT_RUNNING
+}
 run_as() {
 	# parameter: run_as (master|slave|none) [master_hostname] "$parent_log"
 	local mode=$1
@@ -102,7 +122,16 @@ run_as() {
 	ra_log debug "$parent_log -> $MYSQLD_SAFE_BIN $MYSQLD_DEFAULT_PARAM $extra_args -> return $rc"
 	
 	if [ $rc -ne 0 ]; then
-		ra_log debug "$parent_log -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
+		ra_log debug "$parent_log -> exec $MYSQLD_SAFE_BIN -> return $rc -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
+		return $OCF_ERR_GENERIC
+	fi
+	
+	# mysql runs successfully. We should wait for the PID to appear
+	wait_for_mysqld 20 $parent_log
+	local rc_wait_for_mysqld=$?
+	
+	if [ $rc_wait_for_mysqld -ne $OCF_SUCCESS ]; then
+		ra_log debug "$parent_log -> wait_for_mysqld -> returns $rc_wait_for_mysqld"
 		return $OCF_ERR_GENERIC
 	fi
 	
