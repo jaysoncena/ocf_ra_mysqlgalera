@@ -71,7 +71,7 @@ wait_for_mysqld() {
 	
 	while [ $rc_is_mysqld_running -eq $FALSE -a $loop_counter -le $loop_limit ]; do
 		loop_counter=$((loop_counter+1))
-		is_mysqld_running
+		is_mysqld_running "$parent_log"
 		rc_is_mysqld_running=$?
 		ra_log debug "$parent_log -> loop#$loop_counter -> is_mysqld_running=$rc_is_mysqld_running"
 		if [ $is_mysqld_running -eq $OCF_SUCCESS ]; then
