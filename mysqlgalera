@@ -42,7 +42,7 @@ the_master_node() {
 		local cluster_masters=`/usr/sbin/crm_resource --list | grep -A2 "\[$RESOURCE_NAME\]" | grep 'Masters: ' | awk '{print $3}' `
 		echo "$cluster_masters"
 		ra_log debug "$parent_log -> ocf_is_ms=true -> cluster_masters=$cluster_masters -> exit OCF_SUCCESS/$OCF_SUCCESS"
-		return $OCF_SUCCESS
+		return $OCF_SUCCES
 	else
 		# not running as cluster
 		ra_log debug "$parent_log -> ocf_is_ms=false -> exit OCF_SUCCESS/$OCF_SUCCESS"
@@ -54,14 +54,14 @@ the_master_node() {
 is_mysqld_running() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
 	local mysqld_pid=`pidof $MYSQLD_BIN`
-	local rc-pidof=$?
+	local rc_pidof=$?
 	
-	if [ $rc-pidof == $TRUE ]; then
-		ra_log debug "$parent_log -> pidof() $MYSQLD_BIN -> MYSQLD_PID=$mysqld_pid -> return $rc-pidof"
+	if [ $rc_pidof == $TRUE ]; then
+		ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> MYSQLD_PID=$mysqld_pid -> return $rc_pidof"
 		return $OCF_SUCCESS
 	fi
 	
-	ra_log debug "$parent_log -> pidof() $MYSQLD_BIN -> return $rc-pidof -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
+	ra_log debug "$parent_log -> pidof() $MYSQLD_BIN -> return $rc_pidof -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
 	return $OCF_NOT_RUNNING
 }
 run_as() {
@@ -119,9 +119,9 @@ ra_stop() {
 		loop_counter=$((loop_counter+1))
 		ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter"
 		local mysqld_pid=`pidof $MYSQLD_BIN`
-		local rc-pidof=$?
+		local rc_pidof=$?
 		
-		if [ $rc-pidof -eq $TRUE ]; then
+		if [ $rc_pidof -eq $TRUE ]; then
 			# mysqld running
 			for pid in $mysqld_pid; do
 				kill $pid >/dev/null 2>&1
@@ -129,7 +129,7 @@ ra_stop() {
 			done
 		else
 			# no instance of mysqld running
-			ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> is_running=false,return $rc-pidof -> exit OCF_SUCCESS/$OCF_SUCCESS"
+			ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> is_running=false,return $rc_pidof -> exit OCF_SUCCESS/$OCF_SUCCESS"
 			return $OCF_SUCCESS
 		fi
 		sleep 0.1
@@ -140,45 +140,45 @@ ra_stop() {
 }
 ra_start() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
-	local rc-ocf_is_ms
+	local rc_ocf_is_ms
 	ocf_is_ms
-	rc-ocf_is_ms=$?
+	rc_ocf_is_ms=$?
 
 	if is_mysqld_running "$parent_log"; then
 		# There is a mysqld instance running
 		ra_stop "$parent_log"
 	fi
 
-	if [ $rc-ocf_is_ms -eq 0 ]; then
+	if [ $rc_ocf_is_ms -eq 0 ]; then
 		# Resource running in Master/Slave
-		local rc-the_master_node
+		local rc_the_master_node
 		local master_node=`the_master_node "$parent_log"`
-		rc-the_master_node=$?
-		ra_log debug "$parent_log -> ocf_is_ms()=$rc-ocf_is_ms -> the_master_node()=$master_node -> return $rc-the_master_node"
+		rc_the_master_node=$?
+		ra_log debug "$parent_log -> ocf_is_ms()=$rc_ocf_is_ms -> the_master_node()=$master_node -> return $rc_the_master_node"
 		
-		if [ $rc-the_master_node -eq $TRUE ]; then
+		if [ $rc_the_master_node -eq $TRUE ]; then
 			# The function the_master_node() run successfully
 			if [ x"$master_node" == x"$HOSTNAME" -o x"$master_node" == x"" ]; then
 				# We are the master
-				run_as master "$parent_log -> ocf_is_ms()=$rc-of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
+				run_as master "$parent_log -> ocf_is_ms()=$rc_of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
 				return $?
 			elif [ x"$master_node" == x"" ]; then
 				# The resource is currently in master/slave node but no node is currently elected as master
-				run_as master "$parent_log -> ocf_is_ms()=$rc-of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
+				run_as master "$parent_log -> ocf_is_ms()=$rc_of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
 				return $?
 			else
 				# We are slave
-				run_as slave $master_node "$parent_log -> ocf_is_ms()=$rc-of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
+				run_as slave $master_node "$parent_log -> ocf_is_ms()=$rc_of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
 				return $?
 			fi
 		else
 			# Function exited with value other than 0. Something went wrong with the function the_master_node()
-			ra_log debug "$parent_log -> ocf_is_ms()=$rc-of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> ra_start() return OCF_ERR_GENERIC"
+			ra_log debug "$parent_log -> ocf_is_ms()=$rc_of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> ra_start() return OCF_ERR_GENERIC"
 			return $OCF_ERR_GENERIC
 		fi
 	else
 		# Resource running on single instance(without replication)
-		run_as none "$parent_log -> ocf_is_ms()=$rc-ocf_is_ms -> run_as none"
+		run_as none "$parent_log -> ocf_is_ms()=$rc_ocf_is_ms -> run_as none"
 		return $?
 	fi
 }
@@ -232,11 +232,10 @@ ra_validate() {
 	ra_log debug "$parent_log -> exit OCF_SUCCESS/$OCF_SUCCESS"
 	return $OCF_SUCCESS
 }
+
 case $__OCF_ACTION in
 	meta-data)	ra_metadata "CRM";;
 	start)		ra_start "CRM";;
-	promote)	ra_promote "CRM";;
-	demote)		ra_demote "CRM";;
 	stop)		ra_stop 200 "CRM";;
 	monitor)	ra_monitor "CRM";;
 	validate-all)	ra_validate "CRM";;
