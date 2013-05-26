@@ -112,9 +112,9 @@ ra_stop() {
 	local loop_limit=$1
 	local loop_counter=0
 	local is_running=$TRUE
-	local parent_log="${!#} -> ${FUNCNAME[0]}() timeout=$timeout"
+	local parent_log="${!#} -> ${FUNCNAME[0]}() loop_limit=$loop_limit"
 	
-	while [ $is_running -eq $TRUE -o $loop_counter -le $loop_limit ]; do
+	while [ $is_running -eq $TRUE -a $loop_counter -le $loop_limit ]; do
 		# Run this loop until mysqld is running OR hasn't reached the timeout
 		loop_counter=$((loop_counter+1))
 		ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter"
