@@ -86,7 +86,7 @@ run_as() {
 			ra_log debug "$parent_log -> case mode=\"$mode\" -> MASTER_NODE=$master,sst_auth=\"$SST_AUTH\",sst_method=\"SST_METHOD\""
 		;;
 		*)
-			ra_log debug"$parent_log -> case mode=\"$mode\""
+			ra_log debug "$parent_log -> case mode=\"$mode\""
 		;;
 	esac
 	
