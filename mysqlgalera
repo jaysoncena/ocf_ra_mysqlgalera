@@ -12,7 +12,7 @@ SST_AUTH="root:rootpass"
 SST_METHOD="xtrabackup"
 MYSQLD_DEFAULT_PARAM="--basedir=/usr --datadir=/var/lib/mysql --bind-address=0.0.0.0 --port=3306"
 MYSQLD_SAFE_BIN="/usr/bin/mysqld_safe"
-MYSQLD_BIN="/usr/bin/mysqld"
+MYSQLD_BIN="/usr/sbin/mysqld"
 FALSE=1
 TRUE=0
 RESOURCE_NAME=mysqlgalera
@@ -54,7 +54,7 @@ the_master_node() {
 is_mysqld_running() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
 	local mysqld_pid=`pidof $MYSQLD_BIN`
-	local rc_pidof=$?
+	local rc_kill0
 	
 	if [ $rc_pidof == $TRUE ]; then
 		ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> MYSQLD_PID=$mysqld_pid -> return $rc_pidof"
@@ -113,7 +113,7 @@ ra_stop() {
 	local loop_counter=0
 	local is_running=$TRUE
 	local parent_log="${!#} -> ${FUNCNAME[0]}() loop_limit=$loop_limit"
-	
+
 	while [ $is_running -eq $TRUE -a $loop_counter -le $loop_limit ]; do
 		# Run this loop until mysqld is running OR hasn't reached the timeout
 		loop_counter=$((loop_counter+1))
@@ -132,7 +132,7 @@ ra_stop() {
 			ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> is_running=false,return $rc_pidof -> exit OCF_SUCCESS/$OCF_SUCCESS"
 			return $OCF_SUCCESS
 		fi
-		sleep 0.1
+		sleep 1
 	done
 	
 	ra_log debug "$parent_log -> exit OCF_SUCCESS/$OCF_SUCCESS"
@@ -146,7 +146,7 @@ ra_start() {
 
 	if is_mysqld_running "$parent_log"; then
 		# There is a mysqld instance running
-		ra_stop "$parent_log"
+		ra_stop 10 "$parent_log"
 	fi
 
 	if [ $rc_ocf_is_ms -eq 0 ]; then
@@ -236,7 +236,7 @@ ra_validate() {
 case $__OCF_ACTION in
 	meta-data)	ra_metadata "CRM";;
 	start)		ra_start "CRM";;
-	stop)		ra_stop 200 "CRM";;
+	stop)		ra_stop 10 "CRM";;
 	monitor)	ra_monitor "CRM";;
 	validate-all)	ra_validate "CRM";;
 	usage|help)	exit $OCF_SUCCESS;;
