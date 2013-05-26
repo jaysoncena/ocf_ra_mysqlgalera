@@ -148,6 +148,13 @@ ra_stop() {
 		# Run this loop until mysqld is running OR hasn't reached the timeout
 		loop_counter=$((loop_counter+1))
 		ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter"
+		is_mysqld_running "$parent_log"
+		local rc_is_mysqld_running=$?
+		if [ $rc_is_mysqld_running -ne $OCF_SUCCESS ]; then
+			ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter -> is_mysqld_running -> FALSE"
+			return $OCF_SUCCESS
+		fi
+
 		local mysqld_pid=`pidof $MYSQLD_BIN`
 		local rc_pidof=$?
 		
