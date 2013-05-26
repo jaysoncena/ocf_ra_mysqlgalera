@@ -1,4 +1,10 @@
 #!/bin/bash
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS=${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs}
+. ${OCF_FUNCTIONS}
+: ${__OCF_ACTION=$1}
 
 HOSTNAME=`uname -n`
 SST_AUTH="root:rootpass"
@@ -65,7 +71,6 @@ run_as() {
 	local master=$2
 	local extra_args=
 	local is_ms=$FALSE
-	local rc
 
 	# check if mysql service will be running as master, slave or single/independent instance
 	case $mode in
@@ -91,7 +96,7 @@ run_as() {
 	esac
 	
 	$MYSQLD_BIN_SAFE $MYSQLD_PARAM $extra_args >/dev/null 2>&1 &
-	rc=$?
+	local rc=$?
 	ra_log debug "debug $parent_log -> $MYSQLD_BIN_SAFE $MYSQLD_PARAM $extra_args -> return $rc"
 	
 	if [ $rc -ne 0 ]; then
