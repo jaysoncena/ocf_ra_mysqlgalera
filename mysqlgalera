@@ -153,28 +153,20 @@ ra_start() {
 		# Resource running in Master/Slave
 		local rc_the_master_node
 		local master_node=`the_master_node "$parent_log"`
-		rc_the_master_node=$?
-		ra_log debug "$parent_log -> ocf_is_ms()=$rc_ocf_is_ms -> the_master_node()=$master_node -> return $rc_the_master_node"
-		
-		if [ $rc_the_master_node -eq $TRUE ]; then
-			# The function the_master_node() run successfully
-			if [ x"$master_node" == x"$HOSTNAME" -o x"$master_node" == x"" ]; then
-				# We are the master
-				run_as master "$parent_log -> ocf_is_ms()=$rc_of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
-				return $?
-			elif [ x"$master_node" == x"" ]; then
-				# The resource is currently in master/slave node but no node is currently elected as master
-				run_as master "$parent_log -> ocf_is_ms()=$rc_of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
-				return $?
-			else
-				# We are slave
-				run_as slave $master_node "$parent_log -> ocf_is_ms()=$rc_of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
-				return $?
-			fi
+		ra_log debug "$parent_log -> ocf_is_ms()=$rc_ocf_is_ms -> the_master_node()=$master_node"
+
+		if [ x"$master_node" == x"$HOSTNAME" -o x"$master_node" == x"" ]; then
+			# We are the master
+			run_as master "$parent_log -> ocf_is_ms()=true -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
+			return $?
+		elif [ x"$master_node" == x"" ]; then
+			# The resource is currently in master/slave node but no node is currently elected as master
+			run_as master "$parent_log -> ocf_is_ms()=true -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() master"
+			return $?
 		else
-			# Function exited with value other than 0. Something went wrong with the function the_master_node()
-			ra_log debug "$parent_log -> ocf_is_ms()=$rc_of_is_ms -> the_master_node()=$master_node,hostname=$HOSTNAME -> ra_start() return OCF_ERR_GENERIC"
-			return $OCF_ERR_GENERIC
+			# We are slave
+			run_as slave $master_node "$parent_log -> ocf_is_ms()=true -> the_master_node()=$master_node,hostname=$HOSTNAME -> run_as() slave"
+			return $?
 		fi
 	else
 		# Resource running on single instance(without replication)
