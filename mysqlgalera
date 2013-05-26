@@ -148,29 +148,29 @@ ra_stop() {
 		# Run this loop until mysqld is running OR hasn't reached the timeout
 		loop_counter=$((loop_counter+1))
 		ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter"
+
 		is_mysqld_running "$parent_log"
 		local rc_is_mysqld_running=$?
 		if [ $rc_is_mysqld_running -ne $OCF_SUCCESS ]; then
-			ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter -> is_mysqld_running -> FALSE"
+			ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter -> is_mysqld_running -> FALSE -> exit OCF_SUCCESS/$OCF_SUCCESS"
 			return $OCF_SUCCESS
 		fi
 
+		# at this stage, mysql is still running
 		local mysqld_pid=`pidof $MYSQLD_BIN`
-		local rc_pidof=$?
 		
-		if [ $rc_pidof -eq $TRUE ]; then
-			# mysqld running
-			for pid in $mysqld_pid; do
-				kill $pid >/dev/null 2>&1
-				ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter -> kill $pid -> return $?"
-			done
-		else
-			# no instance of mysqld running
-			ra_log debug "$parent_log -> pidof $MYSQLD_BIN -> is_running=false,return $rc_pidof -> exit OCF_SUCCESS/$OCF_SUCCESS"
-			return $OCF_SUCCESS
-		fi
+		# mysqld running
+		for pid in $mysqld_pid; do
+			kill $pid >/dev/null 2>&1
+			ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter -> kill $pid -> return $?"
+		done
 		sleep 1
 	done
+	
+	if is_mysqld_running; then
+		ra_log debug "$parent_log -> is_mysqld_running -> TRUE -> exit OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
+		return $OCF_ERR_GENERIC
+	fi
 	
 	ra_log debug "$parent_log -> exit OCF_SUCCESS/$OCF_SUCCESS"
 	return $OCF_SUCCESS
