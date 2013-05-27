@@ -37,6 +37,29 @@ is_master() {
 		return $FALSE
 	fi
 }
+is_master_actual() {
+	local parent_log="${!#} -> ${FUNCNAME[0]}()"
+	
+	if ! is_mysqld_running; then
+		return $OCF_NOT_RUNNING
+	fi
+	
+	mysqld_pid=`pidof $MYSQLD_BIN`
+	
+	wsrep_cluster_cmdline=`cat /proc/$mysqld_pid/cmdline | tr '\000' '\n' | grep "\-\-wsrep-cluster-address=" | sed 's/--wsrep-cluster-address=//g'`
+	ra_log debug "$parent_log -> wsrep_cluster_address=$wsrep_cluster_cmdline"
+	if [ x"$wsrep_cluster_address" == x"gcomm://" ]; then
+		return $OCF_RUNNING_MASTER
+	elif [ x"$wsrep_cluster_address" == x"" ]; then
+		# not running as master
+		:
+	else
+		# running as slave
+		:
+	fi
+	
+	return $OCF_ERR_GENERIC
+}
 the_master_node() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
 	if ocf_is_ms; then
@@ -155,6 +178,8 @@ ra_stop() {
 		is_mysqld_running "$parent_log"
 		local rc_is_mysqld_running=$?
 		if [ $rc_is_mysqld_running -ne $OCF_SUCCESS ]; then
+			ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter -> is_mysqld_running -> FALSE -> CRM_MASTER -D"
+			$CRM_MASTER -D
 			ra_log debug "$parent_log -> is_running=$is_running,loop_limit=$loop_limit,loop_counter=$loop_counter -> is_mysqld_running -> FALSE -> exit OCF_SUCCESS/$OCF_SUCCESS"
 			return $OCF_SUCCESS
 		fi
@@ -235,7 +260,7 @@ ra_promote() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
 	
 	if ! is_mysqld_running "$parent_log"; then
-		ra_log debug g"$parent_log -> is_mysqld_running=false -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
+		ra_log debug "$parent_log -> is_mysqld_running=false -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
 		return $OCF_NOT_RUNNING
 	fi
 	
@@ -243,10 +268,19 @@ ra_promote() {
 	
 	ra_log debug "$parent -> CRM_MASTER -v "$((${OCF_RESKEY_max_slave_lag}+1))
 	$CRM_MASTER -v $((${OCF_RESKEY_max_slave_lag}+1))
+	
 	run_as master "$parent_log"
 	return $?
 }
 ra_demote() {
+	local parent_log="${!#} -> ${FUNCNAME[0]}()"
+	
+	if ! is_mysqld_running "$parent_log"; then
+		ra_log debug "$parent_log -> is_mysqld_running=false -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
+		return $OCF_NOT_RUNNING
+	fi
+	
+	$CRM_MASTER -v 1
 }
 ra_metadata() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
