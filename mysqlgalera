@@ -49,15 +49,15 @@ is_master_actual() {
 	wsrep_cluster_cmdline=`cat /proc/$mysqld_pid/cmdline | tr '\000' '\n' | grep "\-\-wsrep-cluster-address=" | sed 's/--wsrep-cluster-address=//g'`
 	ra_log debug "$parent_log -> wsrep_cluster_address=$wsrep_cluster_cmdline"
 	if [ x"$wsrep_cluster_address" == x"gcomm://" ]; then
+		ra_log debug "$parent_log -> wsrep_cluster_address=$wsrep_cluster_address -> return OCF_RUNNING_MASTER/$OCF_RUNNING_MASTER"
 		return $OCF_RUNNING_MASTER
 	elif [ x"$wsrep_cluster_address" == x"" ]; then
-		# not running as master
-		:
-	else
-		# running as slave
-		:
+		# not running as master nor master. just a standalone mysql instance
+		ra_log debug "$parent_log -> wsrep_cluster_address=$wsrep_cluster_address -> return OCF_SUCCESS/$OCF_SUCCESS"
+		return $OCF_SUCCESS
 	fi
 	
+	ra_log debug "$parent_log -> wsrep_cluster_address=$wsrep_cluster_address -> return OCF_ERR_GENERIC/$OCF_ERR_GENERIC"
 	return $OCF_ERR_GENERIC
 }
 the_master_node() {
@@ -243,10 +243,16 @@ ra_monitor() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
 
 	if is_mysqld_running "$parent_log"; then
-		if is_master "$parent_log"; then
+		local rc_is_master_actual=`is_master_actual "$parent_log"`
+		if [ $rc_is_master_actual -eq $OCF_RUNNING_MASTER ]; then
+			ra_log "$parent_log -> return state=MASTER/OCF_RUNNING_MASTER"
 			return $OCF_RUNNING_MASTER
-		else
+		elif [ $rc_is_master_actual -eq $OCF_SUCCESS ]; then
 			# mysqld running, cluster mode is master
+			ra_log "$parent_log -> return state=SINGLE/OCF_SUCCESS"
+			return $OCF_SUCCESS
+		elif [ $rc_is_master_actual -eq $OCF_ERR_GENERIC ]; then
+			ra_log "$parent_log -> return state=SLAVE/OCF_ERR_GENERIC"
 			return $OCF_SUCCESS
 		fi			
 	else
