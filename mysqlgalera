@@ -16,6 +16,8 @@ MYSQLD_BIN="/usr/sbin/mysqld"
 FALSE=1
 TRUE=0
 RESOURCE_NAME=mysqlgalera
+
+CRM_MASTER="${HA_SBIN_DIR}/crm_master -l reboot "
 ra_log() {
 	# parameter: ra_log (info|debug|err) "$message"
 	local type=$1
@@ -228,6 +230,23 @@ ra_monitor() {
 	fi
 	
 	return $OCF_ERR_GENERIC
+}
+ra_promote() {
+	local parent_log="${!#} -> ${FUNCNAME[0]}()"
+	
+	if ! is_mysqld_running "$parent_log"; then
+		ra_log debug g"$parent_log -> is_mysqld_running=false -> exit OCF_NOT_RUNNING/$OCF_NOT_RUNNING"
+		return $OCF_NOT_RUNNING
+	fi
+	
+	ra_stop 10 "$parent_log" || return $OCF_ERR_GENERIC
+	
+	ra_log debug "$parent -> CRM_MASTER -v "$((${OCF_RESKEY_max_slave_lag}+1))
+	$CRM_MASTER -v $((${OCF_RESKEY_max_slave_lag}+1))
+	run_as master "$parent_log"
+	return $?
+}
+ra_demote() {
 }
 ra_metadata() {
 	local parent_log="${!#} -> ${FUNCNAME[0]}()"
