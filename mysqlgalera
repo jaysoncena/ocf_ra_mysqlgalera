@@ -319,7 +319,7 @@ ra_validate() {
 case $__OCF_ACTION in
 	meta-data)	ra_metadata "CRM";;
 	start)		ra_start "CRM";;
-	stop)		ra_stop 10 "CRM";;
+	stop)		ra_stop 20 "CRM";;
 	monitor)	ra_monitor "CRM";;
 	promote)	exit $OCF_SUCCESS;;
 	demote)		exit $OCF_SUCCESS;;
