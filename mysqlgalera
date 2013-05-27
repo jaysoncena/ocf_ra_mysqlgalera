@@ -245,14 +245,14 @@ ra_monitor() {
 	if is_mysqld_running "$parent_log"; then
 		local rc_is_master_actual=`is_master_actual "$parent_log"`
 		if [ $rc_is_master_actual -eq $OCF_RUNNING_MASTER ]; then
-			ra_log "$parent_log -> return state=MASTER/OCF_RUNNING_MASTER"
+			ra_log "$parent_log -> return state=MASTER/OCF_RUNNING_MASTER/$rc_is_master_actual"
 			return $OCF_RUNNING_MASTER
 		elif [ $rc_is_master_actual -eq $OCF_SUCCESS ]; then
 			# mysqld running, cluster mode is master
-			ra_log "$parent_log -> return state=SINGLE/OCF_SUCCESS"
+			ra_log "$parent_log -> return state=SINGLE/OCF_SUCCESS/$rc_is_master_actual"
 			return $OCF_SUCCESS
 		elif [ $rc_is_master_actual -eq $OCF_ERR_GENERIC ]; then
-			ra_log "$parent_log -> return state=SLAVE/OCF_ERR_GENERIC"
+			ra_log "$parent_log -> return state=SLAVE/OCF_ERR_GENERIC/$rc_is_master_actual"
 			return $OCF_SUCCESS
 		fi			
 	else
